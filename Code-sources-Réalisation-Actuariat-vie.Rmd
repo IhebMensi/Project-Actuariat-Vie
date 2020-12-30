@@ -1,0 +1,474 @@
+---
+title: "Untitled"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Actuariat vie
+# Réalisation du sujet : Modèle de Cairns Blake Dowd
+# Groupe 8
+
+
+
+## 1. Télécharger les données pour le pays concerné.
+
+
+# Charger les packages nécéssaires
+```{r }
+library("forecast")
+```
+```{r }
+library("demography")
+```
+
+```{r }
+library("StMoMo")
+
+```
+
+```{r }
+library("forecast")
+```
+
+```{r }
+library("lifecontingencies")
+```
+
+
+
+```{r }
+#Telecharger les données de la population britanique
+ukdemo<-hmd.mx(country="GBR_NP", username="iheb.mensi@esprit.tn",password="1587058007",label="U.K")
+```
+
+```{r }
+ukdemo
+```
+
+
+```{r }
+# Visualisation du comportement du taux de mortalité de la population britanique pour les hommes, les femmes et la totalité de la population en fonction d'age
+par(mfrow=c(1,3))
+plot(ukdemo,series="male",datatype="rate", main="taux de mortalité  homme")
+plot(ukdemo,series="female",datatype="rate", main="taux de mortalité  femme")
+plot(ukdemo,"total",datatype="rate", main="taux de mortalité  total")
+```
+
+
+```{r }
+# Visualisation du comportement du taux de mortalité de la population britanique pour les hommes, les femmes et la totalité de la population en fonction d'age
+par(mfrow=c(1,3))
+plot(ukdemo,series="male",datatype="rate",plot.type="time", main="UK, taux de mortalité homme",xlab="Years")
+plot(ukdemo,series="female",datatype="rate",plot.type="time", main="UK,taux de mortalité femme",xlab="Years")
+plot(ukdemo,series="total",datatype="rate",plot.type="time", main="UK,taux de mortalité total",xlab="Years")
+```
+
+```{r }
+# Afficher les taux de mortalité de la population totale britanique pour les années de 1922-1927
+head(ukdemo$rate$total[, 1:6])
+```
+
+```{r }
+# Autre méthode de visualisation du taux de mortalité de la population britanique total entre l'age de 11-80
+plot(x=ukdemo,series=names(ukdemo$rate)[3],ages=ukdemo$age[11:80],years=ukdemo$year,max.age=max(ukdemo$age),plot.type="functions",main="taux de mortalité de la population britannique total")
+```
+```{r }
+# Visualisation du comportement du taux de mortalité de la population britanique pour les hommes de la population en fonction d'age
+plot(ukdemo,series="male",datatype="rate", main="taux de mortalité de la population britannique des hommes")
+```
+### On remarque la présence du pic de taux de mortalité pour les age entre 20-40 et cela est expliqué par la mortalité fort pendant les périodes du querre mondial.
+
+
+
+
+
+## 3. Estimer les paramètres d’un modèle de Lee-Carter à partir des données historiques téléchargées (on pourra utiliser la fonction fit du package StMoMo). On prendra bien soin de :
+## — Commenter/justifier le choix de la plage d’âge et de la période choisie pour calibrer les données.
+## — Commenter les résultats obtenus en affichant les paramètres estimés.
+```{r}
+# Charger les données britanique de la population total pour le package StMoMo
+uk.StMoMoData<-StMoMoData(data=ukdemo, series = "total")
+uk.StMoMoDatam<-StMoMoData(data=ukdemo, series = "male")
+uk.StMoMoDataf<-StMoMoData(data=ukdemo, series = "female")
+```
+
+```{r}
+summary(uk.StMoMoDatam)
+
+```
+
+```{r}
+#Transformez les données StMoMo des expositions centrales en expositions initiales afin d'avoir une meilleur résultat d'apprentissage
+#NB : Les expositions initiales sont calculées en ajoutant la moitié des décès aux expositions centrales.
+uk.StMoMoData.Ini<-central2initial(uk.StMoMoData)
+uk.StMoMoData.Inim<-central2initial(uk.StMoMoDatam)
+uk.StMoMoData.Inif<-central2initial(uk.StMoMoDataf)
+```
+
+```{r}
+#Génère une matrice de pondération en fonction d'un groupe d'âges et d'années
+ages.fit = 0:80
+wxt <- genWeightMat(ages = ages.fit, years = uk.StMoMoData.Ini$years)
+wxtm <- genWeightMat(ages = ages.fit, years = uk.StMoMoData.Inim$years)
+wxtf <- genWeightMat(ages = ages.fit, years = uk.StMoMoData.Inif$years)
+```
+
+```{r}
+# passer les données par l'apprentissage de Lee-Carter
+## LC
+LC <- lc(link = "logit")
+LCfit <- fit(LC, data = uk.StMoMoData.Ini, ages.fit = ages.fit, wxt = wxt)
+LCfitm <- fit(LC, data = uk.StMoMoData.Inim, ages.fit = ages.fit, wxt = wxtm)
+LCfitf <- fit(LC, data = uk.StMoMoData.Inif, ages.fit = ages.fit, wxt = wxtf)
+```
+
+```{r}
+# Afficher les paramétre du modéle lee carter entrainé
+head(LCfitf)
+```
+```{r}
+#Visualiser les paramétres de lee carter de la population totale
+plot(LCfit)
+```
+```{r}
+#Visualiser les paramétres de lee carter de la population homme
+plot(LCfitm)
+```
+
+```{r}
+#Visualiser les paramétres de lee carter de la population femme
+plot(LCfitf)
+```
+
+```{r}
+# Visualiser le comportement de taux moyen log de mortalité pour homme et femme
+plot(LCfitm$ax,type="l",,xlabel="ax",main="ax estimé en fonction age x")
+lines(x = ages.fit, y = LCfitf$ax, col = "red")
+legend("topright" , c("homme","femme"), cex=0.5,col=c("black","red"),lty=1);
+```
+### On remarque que le taux de mortalité chez les hommes est plus fort que chez les femmes puisque la courbe des hommes est toujours au dessus de celle des femmes. On remarque aussi la présence de courbure à l'age de 17-18 ans chez les femmes et la présence de cette courbure 20-23
+
+### En observant les paramétre estimé, la mortalité moyenne augmente lorsque l'âge augmente ce qui est vérifier dans le schema de ax. On remarque aussi la présence d'une faible pic entre l'age de 19-30. On peut expliqué ce comportement en raison de décés accidentales. 
+### bx montre plutôt une plus grande valeur pour les jeunes âges de 0-20 ans et une faible amélioration pour la tranche d'âge (60-80).
+### Enfin, comme il est  prévu, kt qui représente l'evolution du taux de mortalité a une tendance à la baisse avec l'augmentation du temps. On peut expliqué ce comportement par l'evolution des services de la santé et l'absence des guerres pendans ces dernieres années 
+```{r}
+plot(LCfit$ax,type="l")
+```
+## 5. Estimer les paramètres d’un modèle de CBD à partir des données historiques téléchargées (on pourra utiliser la fonction fit du package StMoMo). On prendra bien soin de :
+## — Commenter/justifier le choix de la plage d’âge et de la période choisie pour calibrer les données.
+## — Commenter les résultats obtenus en affichant les paramètres estimés.
+
+## CBD
+```{r}
+# passer les données par l'apprentissage de Cairns Blake Dowd
+# Préciser l'intervalle d'age pour le modéle CBD entre 55-89 ans
+ages.fit.cbd=55:89
+CBD <- cbd(link = "logit")
+wxtt <- genWeightMat(ages = ages.fit.cbd, years = uk.StMoMoData.Inim$years)
+wxtm <- genWeightMat(ages = ages.fit.cbd, years = uk.StMoMoData.Inim$years)
+wxtf <- genWeightMat(ages = ages.fit.cbd, years = uk.StMoMoData.Inif$years)
+CBDfit <- fit(CBD, data = uk.StMoMoData.Ini, ages.fit = ages.fit, wxt = wxt)
+
+CBDfitt <- fit(CBD, data = uk.StMoMoData.Ini, ages.fit = ages.fit.cbd, wxt = wxtt)
+CBDfitm <- fit(CBD, data = uk.StMoMoData.Inim, ages.fit = ages.fit.cbd, wxt = wxtm)
+CBDfitf <- fit(CBD, data = uk.StMoMoData.Inif, ages.fit = ages.fit.cbd, wxt = wxtf)
+```
+
+```{r}
+plot(CBDfit)
+```
+```{r}
+#Visualiser les paramétres de CBD de la population totale
+plot(CBDfitt)
+```
+
+```{r}
+#Visualiser les paramétres de CBD de la population homme
+plot(CBDfitm)
+```
+
+```{r}
+#Visualiser les paramétres de CBD de la population femme
+plot(CBDfitf)
+```
+### L'indice du temps kt(1) diminue au cours du temps. Cela signifie que le taux de mortalité a diminué au fil du temps pour tous les âges.
+### L'indice du temps kt(2) augmente de plus en plus au cours du temps. Cela signifie que le taux de mortalité aux ages plus jeunes  s'améliore rapidement que pour les personnes plus agés
+
+
+
+## 6. Pour différentes années, comparer les log taux de mortalité estimés par les deux modèles. Commenter les résultats.
+```{r}
+# log de taux de motalité estimé par le modéle de Lee-carter
+k= fitted(LCfit, type = "rates")
+km= fitted(LCfitm, type = "rates")
+kf= fitted(LCfitf, type = "rates")
+```
+```{r}
+head(k)
+```
+```{r}
+
+wxtmm <- genWeightMat(ages = ages.fit, years = uk.StMoMoData.Inim$years)
+wxtff <- genWeightMat(ages = ages.fit, years = uk.StMoMoData.Inif$years)
+CBDfitmm <- fit(CBD, data = uk.StMoMoData.Inim, ages.fit = ages.fit, wxt = wxtmm)
+CBDfitff <- fit(CBD, data = uk.StMoMoData.Inif, ages.fit = ages.fit, wxt = wxtff)
+```
+```{r}
+# log de taux de motalité estimé par le modéle de Cairns Blake Dowd
+c=fitted(CBDfit, type = "rates" )
+ct=fitted(CBDfitt, type = "rates" )
+cm=fitted(CBDfitmm, type = "rates" )
+cf=fitted(CBDfitff, type = "rates" )
+head(c)
+```
+
+```{r}
+# Afficher le log taux de mortalité en fonction d'age pour les deux modéles lee carter et Cairns Blake Dowd 
+# pour les années 1922,1950,1980,1990,1995,2000,2005,2015
+par(mfrow=c(4,2))
+plot(log(k[, c('1922')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('1922')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('1950')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('1950')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('1980')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('1980')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('1990')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('1990')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('1995')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('1995')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('2000')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('2000')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('2005')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('2005')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+plot(log(k[, c('2015')]),type="l",xlab="Age",ylab="taux mortalite")
+lines(log(c[, c('2015')]),type="l", col="red")
+legend("topright" , c("LC","CBD"), cex=0.5,col=c("black","red"),lty=1);
+
+```
+### En comparant le log taux de mortalité pour les deux modéles de Lee Carter et de Cairns Blake Dowd, on remarque que les deux modéles ont un comportement différent sur l'intervalle d'age entre 0 et 20 ans : 
+### Lee carter presente une décroissance forte et rapide de l'age 0 à 2-3 ans puis il commence à croitre lentement jusqu'à 20 ans
+### Cairns Blake Dowd présente une relation linéaire entre l'age et le log de taux de mortalité plus l'age augmente le comportement moyen du taux de mortalité augmente pour tous les ages. Cela est expliqué par l'hypothése de Cairns Blake Dowd que  le taux de mortalité moyen est constant chaque année d'âge c'est-à-dire de l'âge x à x + 1.
+### De plus, on remarque qu'à partir l'age de 20 ans les deux modéles deviennent de plus en plus proche de comportement et de valeur de taux de mortalité.
+### Remarque : la comparaison entre les deux modéles lee carter et Cairns Blake Dowd se fait en utilisant le méme plage d'age et d'années.
+
+
+
+
+
+## 8. Dans les deux cas, projeter les taux de mortalité à l’aide de la fonction forecast.
+### forcast Lee-carter
+```{r}
+# projection du taux de mortalité en utilisant le modéle lee carter pour les prochaines 50 année
+nba=50
+LCfor <- forecast(LCfit, h = nba)
+LCform <- forecast(LCfitm, h = nba)
+LCforf <- forecast(LCfitf, h = nba)
+```
+
+```{r}
+# Visualiser la projection Lee carter pour la population total
+plot(LCfor)
+```
+
+```{r}
+# Visualiser la projection Lee carter pour la population homme
+plot(LCform)
+```
+
+```{r}
+# Visualiser la projection Lee carter pour la population femme
+plot(LCforf)
+```
+### On remarque que la projection ne concerne que le paramétre kt puisque il est le seul paramétre dans le modéle lee Carter qui dépend du temps. le paramétre kt va continuer à diminuer selon la projection de lee carter pendant les prochaines 50 années.
+
+```{r}
+# Afficher les valeurs de taux de mortalité pour la projection de 50 ans
+head(LCfor$rates)
+```
+
+```{r}
+# Réaliser 20 simulation de projection du taux de mortalité en utilisant le modéle lee carter pour les prochaines 50 année
+LCsim <- simulate(LCfit, nsim = 20, h = 50)
+## Afficher les différents simulations de Kt en fonctions d'année
+plot(LCfit$years, LCfit$kt[1, ], xlim = range(LCfit$years, LCsim$kt.s$years), ylim = range(LCfit$kt, LCsim$kt.s$sim[1, , 1:20]), type = "l",xlab = "year", ylab = "kt", main = "LC model simulations")
+matlines(LCsim$kt.s$years, LCsim$kt.s$sim[1, , 1:20], type = "l",lty = 1)
+```
+
+### On remarque pour les différents simulations, que l'évolution temporelle du taux de mortalité va se diminuer encore au cours du temps.
+
+
+
+
+
+## utilisation de forcast avec ARIMA
+```{r}
+nba=50
+LCfora <- forecast(LCfit, h = nba,kt.method = "iarima")
+LCforma <- forecast(LCfitm, h = nba,kt.method = "iarima")
+LCforfa <- forecast(LCfitf, h = nba,kt.method = "iarima")
+```
+```{r}
+plot(LCfora)
+```
+```{r}
+plot(LCforma)
+```
+```{r}
+plot(LCforfa)
+```
+### forcast CBD
+
+
+
+```{r}
+# projection du taux de mortalité en utilisant le modéle Cairns Blake Dowd pour les prochaines 50 années
+horizon=50
+CBDfor <- forecast(CBDfitt, h = horizon)
+CBDform <- forecast(CBDfitm, h = horizon)
+CBDforf <- forecast(CBDfitf, h = horizon)
+```
+
+
+```{r}
+# Visualiser la projection CBD pour la population total
+plot(CBDfor)
+```
+```{r}
+# Visualiser la projection CBD pour la population homme
+plot(CBDform)
+```
+```{r}
+# Visualiser la projection CBD pour la population femme
+plot(CBDforf)
+```
+### On remarque que la projection ne concerne que les paramétres kt1 et kt2. Le paramétre kt1 va continuer à diminuer selon la projection de Cairns Blake Dowd at parallélement kt2 va continuer à augmenter pendant les prochaines 50 années.
+
+
+
+
+## utilisation de forcast avec ARIMA
+```{r}
+horizon=50
+CBDfora <- forecast(CBDfitt, h = horizon,kt.method = "iarima")
+CBDforma <- forecast(CBDfitm, h = horizon,kt.method = "iarima")
+CBDforfa <- forecast(CBDfitf, h = horizon,kt.method = "iarima")
+```
+```{r}
+plot(CBDfora)
+```
+```{r}
+plot(CBDforma)
+```
+```{r}
+plot(CBDforfa)
+```
+```{r}
+# Afficher les valeurs de taux de mortalité pour la projection de 50 ans
+head(CBDfor$rates)
+```
+```{r}
+## Afficher les différents simulations de Kt en fonctions d'année
+CBDsim <- simulate(CBDfit, nsim = 20, h = 50)
+plot(CBDfit$years, CBDfit$kt[1, ], xlim = range(CBDfit$years, CBDsim$kt.s$years), ylim = range(CBDfit$kt, CBDsim$kt.s$sim[1, , 1:20]), type = "l",xlab = "year", ylab = "kt", main = "CBD model simulations")
+matlines(CBDsim$kt.s$years, CBDsim$kt.s$sim[1, , 1:20], type = "l",lty = 1)
+```
+# 9. Comparer la Valeur Actuelle Probable d’une rente viagère à termes anticipés contractée en 2020 par un assuré de 65 ans, selon le modèle utiliser pour projeter les taux de mortalité.
+
+## 9.1 la Valeur Actuelle Probable d’une rente viagère à termes anticipés à l'aide de Lee Carter
+
+
+### Afin de calculer VAP d'une rente viagére, il faut détérminer la cohorte qui est 2020-65=1955
+### Cas serie total
+```{r}
+# Convertir le taux de mortalité en probabilité de décés pour la cohorte 1995 en utilisant celle calculé par Lee Carter
+lc_1955=k[, c('1955')]
+qx_1955<-mx2qx(lc_1955)
+qx_1955
+```
+
+```{r}
+# Création d'une nouvelle table de survie en utilisant la probabilité de décés
+lc_lifetable_1955<-probs2lifetable(probs=qx_1955,type = "qx",name = paste("LC","1955","lt",sep="_"))
+print(lc_lifetable_1955)
+```
+
+```{r}
+# Création d"une nouvelle table actuarielle avec taux d'interet de 1.5%
+lc_act_1955<-new("actuarialtable",x=lc_lifetable_1955@x,lx=lc_lifetable_1955@lx, interest=0.015,name="LC")
+print(lc_act_1955)
+```
+
+```{r}
+# Calculer la valeur Actuelle Probable d’une rente viagère à termes anticipés pour l'age 65 à partir d'un tableau actuariel de l'année 1955
+axn(actuarialtable = lc_act_1955,65)
+```
+### Cas serie homme
+```{r}
+lc_1955m=km[, c('1955')]
+qx_1955m<-mx2qx(lc_1955m)
+lc_lifetable_1955m<-probs2lifetable(probs=qx_1955m,type = "qx",name = paste("LC","1955","lt",sep="_"))
+lc_act_1955m<-new("actuarialtable",x=lc_lifetable_1955m@x,lx=lc_lifetable_1955m@lx, interest=0.015,name="LC")
+axn(actuarialtable = lc_act_1955m,65)
+```
+### Cas serie femme
+```{r}
+lc_1955f=kf[, c('1955')]
+qx_1955f<-mx2qx(lc_1955f)
+lc_lifetable_1955f<-probs2lifetable(probs=qx_1955f,type = "qx",name = paste("LC","1955","lt",sep="_"))
+lc_act_1955f<-new("actuarialtable",x=lc_lifetable_1955f@x,lx=lc_lifetable_1955f@lx, interest=0.015,name="LC")
+axn(actuarialtable = lc_act_1955f,65)
+```
+## 9.2 la Valeur Actuelle Probable d’une rente viagère à termes anticipés à l'aide de Cairns Blake Dowd
+```{r}
+# Convertir le taux de mortalité en probabilité de décés pour la cohorte 1995 en utilisant celle calculé par Cairns Blake Dowd
+cbd_1955=c[, c('1955')]
+cbd_qx_1955<-mx2qx(cbd_1955)
+cbd_qx_1955
+```
+
+```{r}
+# Création d'une nouvelle table de survie en utilisant la probabilité de décés
+cbd_lifetable_1955<-probs2lifetable(probs=cbd_qx_1955,type = "qx",name = paste("CBD","1955","UK",sep="_"))
+print(cbd_lifetable_1955)
+```
+
+```{r}
+# Création d"une nouvelle table actuarielle avec taux d'interet de 1.5%
+cbd_act_1955<-new("actuarialtable",x=cbd_lifetable_1955@x,lx=cbd_lifetable_1955@lx, interest=0.015,name="CBD")
+print(cbd_act_1955)
+```
+
+```{r}
+# Calculer la valeur Actuelle Probable d’une rente viagère à termes anticipés pour l'age 65 à partir d'un tableau actuariel de l'année 1955
+cat("la valeur de VAP de CBD est",axn(actuarialtable = cbd_act_1955,65))
+```
+### Cas homme
+```{r}
+cbd_1955m=cm[, c('1955')]
+cbd_qx_1955m<-mx2qx(cbd_1955m)
+cbd_lifetable_1955m<-probs2lifetable(probs=cbd_qx_1955m,type = "qx",name = paste("CBD","1955","UK",sep="_"))
+cbd_act_1955m<-new("actuarialtable",x=cbd_lifetable_1955m@x,lx=cbd_lifetable_1955m@lx, interest=0.015,name="CBD")
+axn(actuarialtable = cbd_act_1955m,65)
+```
+### Cas femme
+```{r}
+cbd_1955f=cf[, c('1955')]
+cbd_qx_1955f<-mx2qx(cbd_1955f)
+cbd_lifetable_1955f<-probs2lifetable(probs=cbd_qx_1955f,type = "qx",name = paste("CBD","1955","UK",sep="_"))
+cbd_act_1955f<-new("actuarialtable",x=cbd_lifetable_1955f@x,lx=cbd_lifetable_1955f@lx, interest=0.015,name="CBD")
+axn(actuarialtable = cbd_act_1955f,65)
+```
+### En comparant la valeur Actuelle Probable d’une rente viagère à termes anticipés pour l'age 65 pour l'année 2020 en utilisant les deux modéles lee carter et Cairns Blake Dowd, on trouve presque les memes valeurs avec une différence négligeable.
+### On peut expliquer ce résultat en se référant au comparaison du comportement de log taux moyen de mortalité de chaque  modéle pour les différents années et on a conclus qu'ils ont des valeurs similaires pour les personnes qui atteint l'age de la retraite.
+### On remarque aussi pour le calcul du vap en utilisant les deux modéles que le vap des femmes et toujours supérieurs que celle des hommes.
